@@ -9,13 +9,12 @@ from flask_cors import CORS
 import threading
 import time
 import logging
-# Import Selenium only if available (fallback mode for cloud deployment)
+# Import Selenium scraper
 try:
     from selenium_scraper import TuttocampoSeleniumScraper
     SELENIUM_AVAILABLE = True
 except ImportError:
     SELENIUM_AVAILABLE = False
-    logger.warning("Selenium not available - running in fallback mode")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -454,37 +453,13 @@ def scrape_aurora_results():
     try:
         logger.info("🎯 API request for ALL Aurora results")
 
-        # TEMPORANEO: Fallback senza Selenium mentre risolviamo Chrome
-        # Ritorna dati di esempio per testare la connettività
-        import os
-        if os.getenv('CHROME_HEADLESS', 'true').lower() == 'true':
-            logger.info("🚧 Using fallback mode - returning sample data")
-            sample_results = [
-                {
-                    "homeTeam": "AURORA SERIATE",
-                    "awayTeam": "PONTE SAN PIETRO",
-                    "homeScore": 2,
-                    "awayScore": 1,
-                    "category": "U21 TERZA",
-                    "championship": "Under21 Girone D"
-                },
-                {
-                    "homeTeam": "SCANZOROSCIATE",
-                    "awayTeam": "AURORA SERIATE",
-                    "homeScore": 1,
-                    "awayScore": 3,
-                    "category": "U18 ALLIEVI REG",
-                    "championship": "Allievi Regionali U18 Girone D"
-                }
-            ]
-
+        # Verifica che Selenium sia disponibile
+        if not SELENIUM_AVAILABLE:
+            logger.error("🚧 Selenium not available - cannot proceed")
             return jsonify({
-                "success": True,
-                "data": sample_results,
-                "cached": False,
-                "timestamp": time.time(),
-                "mode": "fallback"
-            })
+                "success": False,
+                "error": "Selenium not available in this environment"
+            }), 500
 
         # Usa la cache per i risultati Aurora
         cache_key = "aurora_all_results"
@@ -557,6 +532,12 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
 
     logger.info("🚀 Starting Selenium API Server for Aurora Seriate 1967")
+
+    if SELENIUM_AVAILABLE:
+        logger.info("✅ Selenium available - full functionality enabled")
+    else:
+        logger.warning("⚠️ Selenium not available - limited functionality")
+
     logger.info("📱 Ready to serve Flutter Android app requests")
     logger.info(f"🌐 Server will run on http://0.0.0.0:{port}")
     logger.info("📋 Available endpoints:")

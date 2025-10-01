@@ -1,0 +1,1136 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../models/match_model.dart';
+import '../services/match_service.dart';
+import '../services/auth_service.dart';
+import '../services/field_service.dart';
+import '../widgets/match_form_dialog.dart';
+
+class MatchesCalendarScreen extends StatefulWidget {
+  const MatchesCalendarScreen({super.key});
+
+  @override
+  State<MatchesCalendarScreen> createState() => _MatchesCalendarScreenState();
+}
+
+class _MatchesCalendarScreenState extends State<MatchesCalendarScreen> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+  bool _showCalendar = false; // Vista di default: lista partite
+  String? _selectedTeam; // Team selezionato per il filtro (null = tutte)
+
+  @override
+  void initState() {
+    super.initState();
+    // Imposta il giorno selezionato al lunedì della settimana corrente
+    final now = DateTime.now();
+    final mondayOfWeek = _getWeekStart(now);
+    _selectedDay = mondayOfWeek;
+    _focusedDay = mondayOfWeek;
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MatchService>().loadMatches();
+      // Carica anche i campi per la conversione codice -> nome
+      final fieldService = context.read<FieldService>();
+      if (fieldService.fields.isEmpty && !fieldService.isLoading) {
+        fieldService.loadFields();
+      }
+    });
+  }
+
+  DateTime _getWeekStart(DateTime date) {
+    final dayOfWeek = date.weekday;
+    return DateTime(date.year, date.month, date.day - (dayOfWeek - 1));
+  }
+
+  String _getFieldDisplayName(String fieldCode) {
+    try {
+      final fieldService = context.read<FieldService>();
+      final field = fieldService.fields.firstWhere(
+        (field) => field.code == fieldCode,
+      );
+      return field.name; // Solo il nome, senza codice
+    } catch (e) {
+      return fieldCode; // Fallback al codice se non trovato
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text(
+            'Calendario',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontSize: 15,
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: const Color(0xFF1E3A8A),
+          iconTheme: const IconThemeData(color: Colors.white),
+          actions: [
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _showCalendar = !_showCalendar;
+                });
+              },
+              icon: Icon(
+                _showCalendar ? Icons.list : Icons.calendar_month,
+                color: Colors.white,
+              ),
+              tooltip: _showCalendar ? 'Vista Lista' : 'Vista Calendario',
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Consumer3<MatchService, AuthService, FieldService>(
+          builder: (context, matchService, authService, fieldService, child) {
+            if (matchService.isLoading && matchService.matches.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            // Mostra la vista appropriata
+            if (_showCalendar) {
+              return Column(
+                children: [
+                  Card(
+                    margin: EdgeInsets.all(MediaQuery.of(context).size.width < 400 ? 4 : 8),
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TableCalendar<Match>(
+                    firstDay: DateTime.utc(2020, 1, 1),
+                    lastDay: DateTime.utc(2030, 12, 31),
+                    focusedDay: _focusedDay,
+                    calendarFormat: _calendarFormat,
+                    locale: 'it_IT',
+                    eventLoader: (day) {
+                      return matchService.getMatchesForDate(day);
+                    },
+                    startingDayOfWeek: StartingDayOfWeek.monday,
+                    calendarStyle: CalendarStyle(
+                      outsideDaysVisible: false,
+                      weekendTextStyle: const TextStyle(color: Colors.red),
+                      holidayTextStyle: const TextStyle(color: Colors.red),
+                      selectedDecoration: const BoxDecoration(
+                        color: Color(0xFF1E3A8A),
+                        shape: BoxShape.circle,
+                      ),
+                      todayDecoration: const BoxDecoration(
+                        color: Colors.orange,
+                        shape: BoxShape.circle,
+                      ),
+                      // Sistemiamo l'altezza dei giorni della settimana
+                      tablePadding: const EdgeInsets.all(4.0),
+                      cellMargin: const EdgeInsets.all(6.0),
+                    ),
+                    headerStyle: const HeaderStyle(
+                      formatButtonVisible: true,
+                      titleCentered: true,
+                      formatButtonDecoration: BoxDecoration(
+                        color: Color(0xFF1E3A8A),
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      formatButtonTextStyle: TextStyle(
+                        color: Colors.white,
+                      ),
+                    ),
+                    calendarBuilders: CalendarBuilders(
+                      headerTitleBuilder: (context, day) {
+                        return Container(
+                          alignment: Alignment.center,
+                          child: Text(
+                            DateFormat('MMMM yy', 'it_IT').format(day),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
+                      dowBuilder: (context, day) {
+                        return Container(
+                          alignment: Alignment.center,
+                          height: 30,
+                          child: Text(
+                            DateFormat('EEE', 'it_IT').format(day).toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                      markerBuilder: (context, day, events) {
+                        if (events.isEmpty) return null;
+                        
+                        // Raggruppa gli eventi per tipo per creare marker colorati
+                        final Map<String, int> eventsByType = {};
+                        for (final event in events) {
+                          final match = event as Match;
+                          eventsByType[match.matchType] = (eventsByType[match.matchType] ?? 0) + 1;
+                        }
+                        
+                        // Crea i marker colorati
+                        final List<Widget> markers = [];
+                        int index = 0;
+                        for (final entry in eventsByType.entries) {
+                          if (index >= 3) break; // Max 3 marker per giorno
+                          
+                          markers.add(
+                            Positioned(
+                              bottom: 1,
+                              right: 1 + (index * 8),
+                              child: Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: _getMatchTypeMarkerColor(entry.key),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          );
+                          index++;
+                        }
+                        
+                        return Stack(children: markers);
+                      },
+                    ),
+                    availableCalendarFormats: const {
+                      CalendarFormat.month: 'Mese',
+                      CalendarFormat.twoWeeks: '2 settimane',  
+                      CalendarFormat.week: 'Settimana',
+                    },
+                    selectedDayPredicate: (day) {
+                      return isSameDay(_selectedDay, day);
+                    },
+                    onDaySelected: (selectedDay, focusedDay) {
+                      if (!isSameDay(_selectedDay, selectedDay)) {
+                        setState(() {
+                          _selectedDay = selectedDay;
+                          _focusedDay = focusedDay;
+                        });
+                      }
+                    },
+                    onFormatChanged: (format) {
+                      if (_calendarFormat != format) {
+                        setState(() {
+                          _calendarFormat = format;
+                        });
+                      }
+                    },
+                    onPageChanged: (focusedDay) {
+                      _focusedDay = focusedDay;
+                    },
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Expanded(
+                  child: _selectedDay == null
+                      ? const Center(
+                          child: Text('Seleziona una data per vedere le partite'),
+                        )
+                      : _buildMatchesList(matchService),
+                ),
+              ],
+              );
+            } else {
+              // Vista lista di tutte le partite
+              return _buildAllMatchesList(matchService);
+            }
+          },
+          ),
+        ),
+        );
+  }
+
+  List<String> _getUniqueTeams(List<Match> matches) {
+    final teams = <String>{};
+    for (final match in matches) {
+      if (match.auroraTeam != null && match.auroraTeam!.isNotEmpty) {
+        teams.add(match.auroraTeam!);
+      }
+    }
+    return teams.toList()..sort();
+  }
+
+  List<Match> _getFilteredMatches(List<Match> matches) {
+    if (_selectedTeam == null || _selectedTeam!.isEmpty) {
+      return matches; // Tutte le partite
+    }
+    return matches.where((match) => match.auroraTeam == _selectedTeam).toList();
+  }
+
+  Widget _buildTeamFilter(MatchService matchService) {
+    final teams = _getUniqueTeams(matchService.matches);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: DropdownButton<String?>(
+        value: _selectedTeam,
+        hint: const Text('Tutte le squadre'),
+        isExpanded: true,
+        underline: const SizedBox(), // Rimuove la linea sotto il dropdown
+        items: [
+          const DropdownMenuItem<String?>(
+            value: null,
+            child: Text('Tutte le squadre'),
+          ),
+          ...teams.map((team) => DropdownMenuItem<String?>(
+            value: team,
+            child: Text(team),
+          )),
+        ],
+        onChanged: (value) {
+          setState(() {
+            _selectedTeam = value;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildAllMatchesList(MatchService matchService) {
+    return Column(
+      children: [
+        // Filtro squadre
+        _buildTeamFilter(matchService),
+        // Lista infinita partendo dal lunedì della settimana corrente
+        Expanded(
+          child: _buildInfiniteMatchesList(matchService),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMatchesListWithMonthSeparators(List<Match> filteredMatches) {
+    if (filteredMatches.isEmpty) return const SizedBox.shrink();
+    
+    // Crea una lista con separatori di mese
+    final List<Widget> widgets = [];
+    String? currentMonth;
+    
+    for (int i = 0; i < filteredMatches.length; i++) {
+      final match = filteredMatches[i];
+      final monthKey = DateFormat('MMMM yyyy', 'it_IT').format(match.date);
+      
+      // Aggiungi separatore se cambia il mese
+      if (currentMonth != monthKey) {
+        if (widgets.isNotEmpty) {
+          // Aggiungi un po' di spazio prima del nuovo mese
+          widgets.add(const SizedBox(height: 8));
+        }
+        
+        widgets.add(Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E3A8A),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            monthKey.toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ));
+        currentMonth = monthKey;
+      }
+      
+      // Aggiungi la card della partita
+      widgets.add(_buildCompactMatchItem(match));
+    }
+    
+    return ListView(
+      padding: EdgeInsets.all(MediaQuery.of(context).size.width < 400 ? 4 : 8),
+      children: widgets,
+    );
+  }
+
+  Widget _buildCompactMatchItem(Match match) {
+    // Logica per mostrare sempre il campo/location (mai le note)
+    String getDisplayLocation() {
+      if (match.location.isEmpty) {
+        return 'Campo non specificato';
+      }
+      
+      // Sempre cercare di mostrare il nome del campo dal FieldService
+      try {
+        final fieldService = context.read<FieldService>();
+        final field = fieldService.fields.firstWhere(
+          (field) => field.code == match.location,
+        );
+        return field.name; // Solo il nome, senza codice
+      } catch (e) {
+        // Se non trovato nel FieldService, restituisce il contenuto di location così com'è
+        return match.location;
+      }
+    }
+
+    // Determina il nome dell'evento da mostrare a sinistra
+    String getEventName() {
+      // Per tornei: usa il nome dal campo note se disponibile
+      if (match.matchType.toLowerCase() == 'torneo' &&
+          match.notes != null && match.notes!.isNotEmpty) {
+        return match.notes!.trim();
+      }
+      
+      // Per coppe: usa il nome dal campo note se disponibile  
+      if (match.matchType.toLowerCase() == 'coppa' &&
+          match.notes != null && match.notes!.isNotEmpty) {
+        return match.notes!.trim();
+      }
+      
+      // Per campionato e amichevoli: usa il nome standard
+      final matchTypeMap = {
+        'campionato': 'Campionato',
+        'amichevole': 'Amichevole',
+      };
+      return matchTypeMap[match.matchType] ?? match.matchType;
+    }
+
+    return Container(
+      height: 80,
+      margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
+      child: Card(
+        elevation: 1,
+        child: InkWell(
+          onTap: () => _showEditMatchDialog(match),
+          child: Container(
+            height: 80,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: Border(
+                left: BorderSide(
+                  color: _getMatchTypeMarkerColor(match.matchType),
+                  width: 4,
+                ),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+              // Prima riga: risultato - squadra A - data/orario - squadra B - risultato
+              Row(
+                children: [
+                  // Risultato squadra A (sinistra)
+                  SizedBox(
+                    width: 20,
+                    child: Text(
+                      match.isHome 
+                          ? (match.goalsAurora?.toString() ?? '-')
+                          : (match.goalsOpponent?.toString() ?? '-'),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: (match.goalsAurora != null && match.goalsOpponent != null)
+                            ? _getResultColor(match.goalsAurora!, match.goalsOpponent!)
+                            : Colors.grey[600]!,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 4),
+                  
+                  // Nome squadra A  
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      match.isHome
+                          ? (match.auroraTeam ?? 'AURORA')
+                          : match.opponent,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 8),
+                  
+                  // Data e orario centrato (senza icone)
+                  SizedBox(
+                    width: 40,
+                    child: Column(
+                      children: [
+                        Text(
+                          DateFormat('dd/MM').format(match.date),
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        Text(
+                          match.time,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 8),
+                  
+                  // Nome squadra B
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      !match.isHome
+                          ? (match.auroraTeam ?? 'AURORA')
+                          : match.opponent,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      textAlign: TextAlign.left,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 4),
+                  
+                  // Risultato squadra B (destra)
+                  SizedBox(
+                    width: 20,
+                    child: Text(
+                      !match.isHome 
+                          ? (match.goalsAurora?.toString() ?? '-')
+                          : (match.goalsOpponent?.toString() ?? '-'),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: (match.goalsAurora != null && match.goalsOpponent != null)
+                            ? _getResultColor(match.goalsAurora!, match.goalsOpponent!)
+                            : Colors.grey[600]!,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 2),
+              
+              // Seconda riga: Nome evento a sinistra e indirizzo a destra
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Nome evento a sinistra (sempre maiuscolo)
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      getEventName().toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF1E3A8A), // Blu scuro per categoria
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      textAlign: TextAlign.left,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  // Indirizzo a destra (maiuscolo solo per amichevoli)
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      match.matchType.toLowerCase() == 'amichevole'
+                          ? getDisplayLocation().toUpperCase()
+                          : getDisplayLocation(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMatchesList(MatchService matchService) {
+    final selectedMatches = matchService.getMatchesForDate(_selectedDay!)
+      ..sort((a, b) => a.time.compareTo(b.time));
+
+    if (selectedMatches.isEmpty) {
+      return SingleChildScrollView(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+            Icon(
+              Icons.sports_soccer,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Nessuna partita il ${DateFormat('dd/MM/yyyy').format(_selectedDay!)}',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => _showAddMatchDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Aggiungi Partita'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3A8A),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.all(MediaQuery.of(context).size.width < 400 ? 4 : 8),
+      itemCount: selectedMatches.length,
+      itemBuilder: (context, index) {
+        final match = selectedMatches[index];
+        return _buildMatchCard(match);
+      },
+    );
+  }
+
+  Widget _buildMatchCard(Match match) {
+    final matchTypeMap = {
+      'campionato': 'Campionato',
+      'torneo': 'Torneo', 
+      'coppa': 'Coppa',
+      'amichevole': 'Amichevole',
+    };
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _showEditMatchDialog(match),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border(
+              left: BorderSide(
+                color: _getMatchTypeMarkerColor(match.matchType),
+                width: 5,
+              ),
+            ),
+          ),
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+            // Prima riga: Ora e Tipo partita
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_time,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      'ore ${match.time}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E3A8A),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _getMatchTypeMarkerColor(match.matchType),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        () {
+                          final baseType = matchTypeMap[match.matchType] ?? 'Campionato';
+                          
+                          // Per TORNEO: mostra direttamente le note invece di "TORNEO"
+                          if (match.matchType.toLowerCase() == 'torneo' && 
+                              match.notes != null && match.notes!.isNotEmpty) {
+                            return match.notes!.trim();
+                          }
+                          
+                          // Per COPPA: mostra direttamente le note (come TORNEO)
+                          if (match.matchType.toLowerCase() == 'coppa' && 
+                              match.notes != null && match.notes!.isNotEmpty) {
+                            return match.notes!.trim();
+                          }
+                          
+                          return baseType;
+                        }(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E3A8A), // Blu scuro per categoria
+                        ),
+                        maxLines: 2, // Permette 2 righe se il nome è lungo
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          _showEditMatchDialog(match);
+                        } else if (value == 'delete') {
+                          _showDeleteMatchDialog(match);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, color: Colors.blue),
+                              SizedBox(width: 8),
+                              Text('Modifica'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Elimina'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            
+            // Seconda riga: Squadra di casa
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: match.isHome ? Colors.red : Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      match.isHome
+                          ? (match.auroraTeam ?? 'AURORA')
+                          : match.opponent,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  child: Text(
+                    match.isHome 
+                        ? (match.goalsAurora?.toString() ?? '-')
+                        : (match.goalsOpponent?.toString() ?? '-'),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: (match.goalsAurora != null && match.goalsOpponent != null)
+                          ? _getResultColor(match.goalsAurora!, match.goalsOpponent!)
+                          : Colors.grey[600]!,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            // Terza riga: Squadra ospite  
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: !match.isHome ? Colors.red : Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      !match.isHome
+                          ? (match.auroraTeam ?? 'AURORA')
+                          : match.opponent,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  child: Text(
+                    !match.isHome 
+                        ? (match.goalsAurora?.toString() ?? '-')
+                        : (match.goalsOpponent?.toString() ?? '-'),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: (match.goalsAurora != null && match.goalsOpponent != null)
+                          ? _getResultColor(match.goalsAurora!, match.goalsOpponent!)
+                          : Colors.grey[600]!,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            
+            // Quarta riga: Campo
+            Row(
+              children: [
+                Icon(
+                  Icons.location_on,
+                  size: 16,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    match.location.isNotEmpty ? _getFieldDisplayName(match.location) : ' ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            
+            // Note (sempre presenti per uniformità)
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(
+                  Icons.note,
+                  size: 16,
+                  color: match.notes != null && match.notes!.isNotEmpty 
+                      ? Colors.grey[600] 
+                      : Colors.transparent,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    match.notes ?? ' ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ), 
+            if (false) ...[
+            ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getTypeColor(String type) {
+    switch (type) {
+      case 'campionato':
+        return const Color(0xFF1E3A8A); // Blu
+      case 'coppa':
+        return Colors.red[600]!; // Rosso
+      case 'torneo':
+        return Colors.orange[600]!; // Arancione
+      case 'amichevole':
+        return Colors.red[600]!; // Rosso
+      default:
+        return Colors.grey[600]!;
+    }
+  }
+
+  Color _getResultColor(int auroraGoals, int opponentGoals) {
+    if (auroraGoals > opponentGoals) {
+      return Colors.red[600]!; // Vittoria
+    } else if (auroraGoals == opponentGoals) {
+      return Colors.orange[600]!; // Pareggio
+    } else {
+      return Colors.red[600]!; // Sconfitta
+    }
+  }
+
+  void _showAddMatchDialog() {
+    _showFullMatchFormDialog();
+  }
+  
+  void _showFullMatchFormDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return MatchFormDialog(
+          selectedDate: _selectedDay ?? DateTime.now(),
+          onSave: (match) async {
+            final matchService = context.read<MatchService>();
+            final navigator = Navigator.of(context);
+            final messenger = ScaffoldMessenger.of(context);
+            final success = await matchService.addMatch(match);
+            
+            navigator.pop();
+            if (success) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Partita aggiunta con successo!')),
+              );
+            } else {
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(matchService.errorMessage ?? 'Errore sconosciuto'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+        );
+      },
+    );
+  }
+
+  void _showEditMatchDialog(Match match) {
+    showDialog(
+      context: context,
+      builder: (context) => MatchFormDialog(
+        selectedDate: match.date,
+        match: match,
+        onSave: (updatedMatch) async {
+          if (kDebugMode) {
+            print('=== DIALOG ONSAVE CALLED ===');
+            print('Updated Match: ${updatedMatch.toJson()}');
+            print('===========================');
+          }
+          
+          final matchService = context.read<MatchService>();
+          final navigator = Navigator.of(context);
+          final messenger = ScaffoldMessenger.of(context);
+          final success = await matchService.updateMatch(updatedMatch);
+
+          navigator.pop();
+          if (success) {
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Partita aggiornata con successo!')),
+            );
+          } else {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(matchService.errorMessage ?? 'Errore nell\'aggiornamento'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _showDeleteMatchDialog(Match match) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Conferma eliminazione'),
+        content: Text('Sei sicuro di voler eliminare la partita vs ${match.opponent}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              final matchService = context.read<MatchService>();
+
+              navigator.pop();
+              final success = await matchService.deleteMatch(match.id!);
+              if (success) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Partita eliminata con successo!')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMatchDetails(Match match) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          '${match.auroraTeam ?? "Aurora"} vs ${match.opponent}',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Data: ${DateFormat('dd/MM/yyyy').format(match.date)}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            Text(
+              'Ora: ${match.time}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            Text(
+              'Campo: ${_getFieldDisplayName(match.location)}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            Text(
+              'Tipo: ${match.matchType}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            if (match.goalsAurora != null && match.goalsOpponent != null)
+              Text(
+                'Risultato: ${match.goalsAurora} - ${match.goalsOpponent}',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            if (match.notes != null && match.notes!.isNotEmpty)
+              Text(
+                'Note: ${match.notes}',
+                style: const TextStyle(fontSize: 14),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Chiudi', style: TextStyle(fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getMatchTypeColor(String matchType) {
+    switch (matchType.toLowerCase()) {
+      case 'campionato': return Colors.green;
+      case 'coppa': return Colors.blue;
+      case 'torneo': return Colors.orange;
+      case 'amichevole': return Colors.purple;
+      default: return Colors.grey;
+    }
+  }
+
+  Color _getMatchTypeMarkerColor(String matchType) {
+    switch (matchType.toLowerCase()) {
+      case 'campionato':
+        return const Color(0xFF1E3A8A); // Blu
+      case 'coppa':
+        return Colors.red[600]!; // Rosso
+      case 'torneo':
+        return Colors.orange[600]!; // Arancione
+      case 'amichevole':
+        return Colors.green[600]!; // Verde
+      default:
+        return Colors.grey[600]!;
+    }
+  }
+
+  String _getMatchTypeLetter(String matchType) {
+    switch (matchType.toLowerCase()) {
+      case 'campionato': return 'C';
+      case 'coppa': return 'C';
+      case 'torneo': return 'T';
+      case 'amichevole': return 'A';
+      default: return 'M';
+    }
+  }
+}

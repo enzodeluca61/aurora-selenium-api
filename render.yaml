@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: aurora-selenium-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: CHROME_HEADLESS
+        value: "true"
+      - key: FLASK_ENV
+        value: production
+      - key: DISPLAY
+        value: ":99"
+      - key: CHROME_NO_SANDBOX
+        value: "true"
+    buildCommand: ""
+    startCommand: ""
+    numInstances: 1
+    region: oregon
+    autoDeploy: false
