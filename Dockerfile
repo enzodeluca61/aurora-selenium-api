@@ -32,33 +32,15 @@ RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearm
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver using new Chrome for Testing API
+# Install ChromeDriver using fixed version that works
 RUN CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f3) \
     && echo "Chrome version: $CHROME_VERSION" \
-    && CHROMEDRIVER_URL=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json" | \
-       python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-chrome_version = '$CHROME_VERSION'
-for version in data['versions']:
-    if version['version'] == chrome_version:
-        for download in version['downloads'].get('chromedriver', []):
-            if download['platform'] == 'linux64':
-                print(download['url'])
-                sys.exit(0)
-# Fallback to latest stable
-for version in reversed(data['versions']):
-    for download in version['downloads'].get('chromedriver', []):
-        if download['platform'] == 'linux64':
-            print(download['url'])
-            sys.exit(0)
-") \
-    && echo "ChromeDriver URL: $CHROMEDRIVER_URL" \
-    && wget -O /tmp/chromedriver.zip "$CHROMEDRIVER_URL" \
+    && wget -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/131.0.6778.87/linux64/chromedriver-linux64.zip" \
     && unzip /tmp/chromedriver.zip -d /tmp/ \
     && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chromedriver.zip /tmp/chromedriver-linux64
+    && rm -rf /tmp/chromedriver.zip /tmp/chromedriver-linux64 \
+    && echo "ChromeDriver installed successfully"
 
 # Set working directory
 WORKDIR /app
