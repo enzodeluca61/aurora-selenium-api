@@ -1323,41 +1323,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       ),
                     ),
 
-                    // Centro: TERMINATA/IN CORSO con animazione
+                    // Centro: TERMINATA/IN CORSO con animazione lampeggiante
                     Expanded(
                       child: Center(
                         child: currentStatus == MatchStatus.inProgress
-                          ? TweenAnimationBuilder<double>(
-                              duration: const Duration(milliseconds: 1000),
-                              tween: Tween(begin: 0.3, end: 1.0),
-                              builder: (context, value, child) {
-                                return Opacity(
-                                  opacity: value,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.red, width: 1),
-                                    ),
-                                    child: const Text(
-                                      'IN CORSO',
-                                      style: TextStyle(
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.red,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                              onEnd: () {
-                                // Ricrea l'animazione per l'effetto lampeggiante continuo
-                                if (mounted && currentStatus == MatchStatus.inProgress) {
-                                  setState(() {});
-                                }
-                              },
-                            )
+                          ? _BlinkingInProgressWidget()
                           : currentStatus == MatchStatus.finished
                             ? Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1408,20 +1378,25 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           fallbackColor: resultColor.withValues(alpha: 0.7),
                         ),
                       ),
-                      // Punteggio al centro assoluto
+                      // Punteggio al centro assoluto con animazione per partite in corso
                       Center(
                         child: GestureDetector(
                           onTap: result.id != null ? () => _showManualScoreDialog(result) : null,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), // Ridotto padding
-                            child: Text(
-                              result.score,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: resultColor,
-                              ),
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            child: currentStatus == MatchStatus.inProgress
+                              ? _BlinkingScoreWidget(
+                                  score: result.score,
+                                  color: resultColor,
+                                )
+                              : Text(
+                                  result.score,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: resultColor,
+                                  ),
+                                ),
                           ),
                         ),
                       ),
@@ -1973,5 +1948,137 @@ class _ResultsScreenState extends State<ResultsScreen> {
         _exitStandingsMode();
       }
     }
+  }
+}
+
+// Widget per l'animazione lampeggiante delle partite in corso
+class _BlinkingInProgressWidget extends StatefulWidget {
+  @override
+  _BlinkingInProgressWidgetState createState() => _BlinkingInProgressWidgetState();
+}
+
+class _BlinkingInProgressWidgetState extends State<_BlinkingInProgressWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1200), // Lampeggiamento piano piano
+      vsync: this,
+    );
+
+    _animation = Tween<double>(
+      begin: 0.3, // Opacità minima
+      end: 1.0,   // Opacità massima
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut, // Animazione fluida
+    ));
+
+    // Avvia l'animazione continua (ripetizione infinita)
+    _animationController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _animation.value,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red, width: 1),
+            ),
+            child: const Text(
+              'IN CORSO',
+              style: TextStyle(
+                fontSize: 8,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Widget per l'animazione lampeggiante del punteggio delle partite in corso
+class _BlinkingScoreWidget extends StatefulWidget {
+  final String score;
+  final Color color;
+
+  const _BlinkingScoreWidget({
+    required this.score,
+    required this.color,
+  });
+
+  @override
+  _BlinkingScoreWidgetState createState() => _BlinkingScoreWidgetState();
+}
+
+class _BlinkingScoreWidgetState extends State<_BlinkingScoreWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1500), // Leggermente più lento del badge
+      vsync: this,
+    );
+
+    _animation = Tween<double>(
+      begin: 0.4, // Opacità minima (più visibile del badge)
+      end: 1.0,   // Opacità massima
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Avvia l'animazione continua (ripetizione infinita)
+    _animationController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _animation.value,
+          child: Text(
+            widget.score,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: widget.color,
+            ),
+          ),
+        );
+      },
+    );
   }
 }
