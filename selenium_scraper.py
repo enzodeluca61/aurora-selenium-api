@@ -65,7 +65,7 @@ class TuttocampoSeleniumScraper:
         if headless:
             self.options.add_argument('--headless=new')  # Nuovo headless mode
 
-        # Configurazioni essenziali per ambienti cloud/container
+        # Configurazioni essenziali per ambienti cloud/container (robuste)
         self.options.add_argument('--no-sandbox')
         self.options.add_argument('--disable-dev-shm-usage')
         self.options.add_argument('--disable-gpu')
@@ -75,6 +75,30 @@ class TuttocampoSeleniumScraper:
         self.options.add_argument('--disable-renderer-backgrounding')
         self.options.add_argument('--disable-field-trial-config')
         self.options.add_argument('--disable-ipc-flooding-protection')
+        self.options.add_argument('--single-process')
+        self.options.add_argument('--disable-setuid-sandbox')
+        self.options.add_argument('--disable-zygote')
+        self.options.add_argument('--no-zygote')
+        self.options.add_argument('--disable-accelerated-2d-canvas')
+        self.options.add_argument('--disable-accelerated-jpeg-decoding')
+        self.options.add_argument('--disable-accelerated-mjpeg-decode')
+        self.options.add_argument('--disable-accelerated-video-decode')
+        self.options.add_argument('--disable-crash-reporter')
+        self.options.add_argument('--disable-logging')
+        self.options.add_argument('--disable-notifications')
+        self.options.add_argument('--disable-permissions-api')
+        self.options.add_argument('--hide-scrollbars')
+        self.options.add_argument('--mute-audio')
+        self.options.add_argument('--no-default-browser-check')
+        self.options.add_argument('--no-first-run')
+        self.options.add_argument('--disable-translate')
+        self.options.add_argument('--disable-default-apps')
+        self.options.add_argument('--disable-sync')
+        self.options.add_argument('--disable-reading-from-canvas')
+        self.options.add_argument('--disable-software-compositing-fallback')
+        self.options.add_argument('--disable-background-downloads')
+        self.options.add_argument('--disable-add-to-shelf')
+        self.options.add_argument('--disable-component-extensions-with-background-pages')
 
         # Ottimizzazioni per velocità
         self.options.add_argument('--disable-web-security')
@@ -121,12 +145,53 @@ class TuttocampoSeleniumScraper:
     def start(self):
         """Avvia il browser Chrome ottimizzato e inizializza Supabase"""
         try:
-            print("🏁 Avvio Chrome ottimizzato...")
-            self.driver = webdriver.Chrome(options=self.options)
+            print("🏁 Avvio Chrome ottimizzato per container...")
+
+            # Verifica ChromeDriver esistente
+            import shutil
+            chromedriver_path = shutil.which("chromedriver")
+            if chromedriver_path:
+                print(f"✅ ChromeDriver trovato: {chromedriver_path}")
+            else:
+                print("❌ ChromeDriver non trovato nel PATH")
+                return False
+
+            # Prova ad avviare Chrome con timeout
+            import signal
+            import time
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Chrome startup timeout")
+
+            # Set timeout di 30 secondi per l'avvio di Chrome
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(30)
+
+            try:
+                self.driver = webdriver.Chrome(options=self.options)
+                signal.alarm(0)  # Cancella timeout
+                print("✅ Chrome avviato con successo")
+            except TimeoutError:
+                signal.alarm(0)
+                print("❌ Timeout avvio Chrome (30s)")
+                return False
+            except Exception as chrome_error:
+                signal.alarm(0)
+                print(f"❌ Errore specifico Chrome: {chrome_error}")
+                print(f"❌ Tipo errore: {type(chrome_error).__name__}")
+                return False
 
             # Timeout più brevi per velocità massima
-            self.driver.implicitly_wait(2)  # Ridotto da 3 a 2 secondi
-            self.driver.set_page_load_timeout(8)  # Max 8 secondi per caricare pagina
+            self.driver.implicitly_wait(2)
+            self.driver.set_page_load_timeout(8)
+
+            # Test semplice di Chrome
+            try:
+                self.driver.get("data:text/html,<html><body><h1>Test</h1></body></html>")
+                print("✅ Chrome test page loaded successfully")
+            except Exception as test_error:
+                print(f"❌ Chrome test failed: {test_error}")
+                return False
 
             # Inizializza Supabase
             self.supabase = create_client(self.SUPABASE_URL, self.SUPABASE_KEY)
@@ -134,7 +199,10 @@ class TuttocampoSeleniumScraper:
 
             return True
         except Exception as e:
-            print(f"❌ Errore avvio Chrome o Supabase: {e}")
+            print(f"❌ Errore generale avvio: {e}")
+            print(f"❌ Tipo errore: {type(e).__name__}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
             return False
 
     def stop(self):
