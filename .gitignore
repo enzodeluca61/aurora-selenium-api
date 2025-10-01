@@ -1,0 +1,98 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Python related
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Log files and debug files
+flutter_*.log
+*.html
+debug_*.dart
+debug_*.py
+inspect_*.dart
+test_*.dart
+test_*.py
+
+# Temporary files and SQL scripts
+*.tmp
+*.temp
+add_*.sql
+fix_*.sql
+supabase_*.sql
+*.tar.gz
+*.md.backup
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Documentation files (keep only essential)
+DATABASE_SETUP_COMPLETE.md
+DISCREPANZE_TABELLE_RISOLTE.md
+MIGLIORAMENTO_SCRAPING_MIRATO.md
+NUOVO_ALLENAMENTO_FIX.md
+README_SCRAPING.md
+README_SELENIUM.md
+RISOLUZIONE_MATCH_TYPE_ERROR.md
+SUPABASE_FIX_INSTRUCTIONS.md
+SUPABASE_PDF_FIELDS_UPDATE.md
+
+# Keep essential files for Render deployment
+!selenium_api_server.py
+!selenium_scraper.py
+!requirements.txt
+!Dockerfile
+!RENDER_DEPLOYMENT.md
