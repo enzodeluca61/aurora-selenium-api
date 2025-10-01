@@ -59,26 +59,56 @@ class TuttocampoSeleniumScraper:
 
     def __init__(self, headless=True):
         """Inizializza il scraper Selenium con Chrome ottimizzato per velocità"""
+        import os
+
         self.options = Options()
         if headless:
-            self.options.add_argument('--headless')
+            self.options.add_argument('--headless=new')  # Nuovo headless mode
 
-        # Ottimizzazioni per velocità
+        # Configurazioni essenziali per ambienti cloud/container
         self.options.add_argument('--no-sandbox')
         self.options.add_argument('--disable-dev-shm-usage')
         self.options.add_argument('--disable-gpu')
+        self.options.add_argument('--disable-software-rasterizer')
+        self.options.add_argument('--disable-background-timer-throttling')
+        self.options.add_argument('--disable-backgrounding-occluded-windows')
+        self.options.add_argument('--disable-renderer-backgrounding')
+        self.options.add_argument('--disable-field-trial-config')
+        self.options.add_argument('--disable-ipc-flooding-protection')
+
+        # Ottimizzazioni per velocità
         self.options.add_argument('--disable-web-security')
         self.options.add_argument('--disable-features=VizDisplayCompositor')
         self.options.add_argument('--disable-extensions')
         self.options.add_argument('--disable-plugins')
         self.options.add_argument('--disable-images')  # Non carica immagini
-        # Mantengo JavaScript abilitato per tuttocampo.it
-        # self.options.add_argument('--disable-javascript')  # Commentato: serve per siti moderni
-        # self.options.add_argument('--disable-css')  # Commentato: serve per layout
         self.options.add_argument('--window-size=1280,720')  # Finestra più piccola
         self.options.add_argument('--memory-pressure-off')
         self.options.add_argument('--max_old_space_size=4096')
-        self.options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebDriver/537.36')
+        self.options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36')
+
+        # Configurazioni per ambienti virtuali/cloud
+        self.options.add_argument('--remote-debugging-port=9222')
+        self.options.add_argument('--disable-background-networking')
+        self.options.add_argument('--enable-features=NetworkService,NetworkServiceLogging')
+        self.options.add_argument('--disable-background-timer-throttling')
+        self.options.add_argument('--disable-breakpad')
+        self.options.add_argument('--disable-client-side-phishing-detection')
+        self.options.add_argument('--disable-default-apps')
+        self.options.add_argument('--disable-hang-monitor')
+        self.options.add_argument('--disable-popup-blocking')
+        self.options.add_argument('--disable-prompt-on-repost')
+        self.options.add_argument('--disable-sync')
+        self.options.add_argument('--force-color-profile=srgb')
+        self.options.add_argument('--metrics-recording-only')
+        self.options.add_argument('--safebrowsing-disable-auto-update')
+        self.options.add_argument('--enable-automation')
+        self.options.add_argument('--password-store=basic')
+        self.options.add_argument('--use-mock-keychain')
+
+        # Variabili ambiente per Docker/Render
+        if os.getenv('CHROME_HEADLESS', 'true').lower() == 'true':
+            self.options.add_argument('--display=:99')  # Virtual display
 
         # Disabilita logging per velocità
         self.options.add_experimental_option('useAutomationExtension', False)

@@ -36,8 +36,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY selenium_scraper.py .
 COPY selenium_api_server.py .
 
+# Create xvfb init script for virtual display
+RUN echo '#!/bin/bash\nXvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &\nexec "$@"' > /usr/local/bin/xvfb-run.sh \
+    && chmod +x /usr/local/bin/xvfb-run.sh
+
+# Set environment variables for Chrome
+ENV DISPLAY=:99
+ENV CHROME_HEADLESS=true
+
 # Expose port (Render assigns port via $PORT env var)
 EXPOSE $PORT
 
-# Run the application
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5001} selenium_api_server:app"]
+# Run with virtual display
+CMD ["/usr/local/bin/xvfb-run.sh", "gunicorn", "--bind", "0.0.0.0:10000", "selenium_api_server:app"]
