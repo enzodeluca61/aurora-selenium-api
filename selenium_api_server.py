@@ -154,6 +154,24 @@ class ScrapingAPIServer:
 # Istanza globale del server
 scraping_server = ScrapingAPIServer()
 
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint"""
+    return jsonify({
+        "service": "Aurora Selenium API",
+        "status": "running",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "scrape_category": "/scrape/<category>",
+            "scrape_all": "/scrape/all",
+            "aurora_results": "/scrape/aurora-results",
+            "standings": "/standings/<category>",
+            "cache_status": "/cache/status",
+            "cache_clear": "/cache/clear"
+        }
+    })
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -425,6 +443,38 @@ def scrape_aurora_results():
     """
     try:
         logger.info("🎯 API request for ALL Aurora results")
+
+        # TEMPORANEO: Fallback senza Selenium mentre risolviamo Chrome
+        # Ritorna dati di esempio per testare la connettività
+        import os
+        if os.getenv('CHROME_HEADLESS', 'true').lower() == 'true':
+            logger.info("🚧 Using fallback mode - returning sample data")
+            sample_results = [
+                {
+                    "homeTeam": "AURORA SERIATE",
+                    "awayTeam": "PONTE SAN PIETRO",
+                    "homeScore": 2,
+                    "awayScore": 1,
+                    "category": "U21 TERZA",
+                    "championship": "Under21 Girone D"
+                },
+                {
+                    "homeTeam": "SCANZOROSCIATE",
+                    "awayTeam": "AURORA SERIATE",
+                    "homeScore": 1,
+                    "awayScore": 3,
+                    "category": "U18 ALLIEVI REG",
+                    "championship": "Allievi Regionali U18 Girone D"
+                }
+            ]
+
+            return jsonify({
+                "success": True,
+                "data": sample_results,
+                "cached": False,
+                "timestamp": time.time(),
+                "mode": "fallback"
+            })
 
         # Usa la cache per i risultati Aurora
         cache_key = "aurora_all_results"
