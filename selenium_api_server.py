@@ -9,7 +9,13 @@ from flask_cors import CORS
 import threading
 import time
 import logging
-from selenium_scraper import TuttocampoSeleniumScraper
+# Import Selenium only if available (fallback mode for cloud deployment)
+try:
+    from selenium_scraper import TuttocampoSeleniumScraper
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+    logger.warning("Selenium not available - running in fallback mode")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +45,10 @@ class ScrapingAPIServer:
 
     def _initialize_scraper_pool(self):
         """Inizializza un pool di browser riutilizzabili"""
+        if not SELENIUM_AVAILABLE:
+            print("🚧 Selenium non disponibile - modalità fallback attivata")
+            return
+
         print("🏊‍♂️ Inizializzazione pool di browser per prestazioni ottimali...")
         try:
             # Crea il primo browser
