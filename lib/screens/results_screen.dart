@@ -243,10 +243,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
         }
       } else {
         if (kDebugMode) {
-          print('⚠️ Errore API posizioni $category: ${response.statusCode}');
+          if (response.statusCode == 404) {
+            print('📋 Classifica $category non trovata su tuttocampo.it (404)');
+          } else {
+            print('⚠️ Errore API posizioni $category: ${response.statusCode}');
+          }
         }
         // Fallback: imposta posizione placeholder quando l'API fallisce
-        _setFallbackPosition(category);
+        _setFallbackPosition(category, isNotFound: response.statusCode == 404);
       }
     } catch (e) {
       if (kDebugMode) {
@@ -257,14 +261,33 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  // Imposta una posizione fallback quando il caricamento fallisce
-  void _setFallbackPosition(String category) {
-    final resultsService = context.read<ResultsService>();
-    // Usa posizione 99 per indicare errore di caricamento, così l'UI non resta bloccata
-    resultsService.updateAuroraPosition(category, 99);
+  // Formatta la posizione per la visualizzazione
+  String _formatPosition(int position) {
+    if (position == 0) {
+      return 'Non disponibile';
+    } else if (position == 99) {
+      return 'Errore caricamento';
+    } else {
+      return '${position}° pos.';
+    }
+  }
 
-    if (kDebugMode) {
-      print('🔄 Posizione fallback impostata per $category (errore rete)');
+  // Imposta una posizione fallback quando il caricamento fallisce
+  void _setFallbackPosition(String category, {bool isNotFound = false}) {
+    final resultsService = context.read<ResultsService>();
+
+    if (isNotFound) {
+      // Per categorie non trovate (404), usa posizione 0 per indicare "non disponibile"
+      resultsService.updateAuroraPosition(category, 0);
+      if (kDebugMode) {
+        print('📋 Posizione non disponibile per $category (classifica non pubblicata)');
+      }
+    } else {
+      // Per errori di rete, usa posizione 99 per indicare errore temporaneo
+      resultsService.updateAuroraPosition(category, 99);
+      if (kDebugMode) {
+        print('🔄 Posizione fallback impostata per $category (errore rete)');
+      }
     }
   }
 
@@ -1439,10 +1462,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                             // Mostra posizione reale per squadre Aurora agonistiche
                             isAuroraHome
                               ? (result.homePosition != null
-                                  ? (result.homePosition == 99 ? 'N/A pos.' : '${result.homePosition}° pos.')
+                                  ? _formatPosition(result.homePosition!)
                                   : 'Caricamento pos...')
                               : (result.homePosition != null
-                                  ? '${result.homePosition}° pos.'
+                                  ? _formatPosition(result.homePosition!)
                                   : 'N/A pos.'),
                             style: const TextStyle(
                               fontSize: 6,
@@ -1475,10 +1498,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
                             // Mostra posizione reale per squadre Aurora agonistiche
                             isAuroraAway
                               ? (result.awayPosition != null
-                                  ? (result.awayPosition == 99 ? 'N/A pos.' : '${result.awayPosition}° pos.')
+                                  ? _formatPosition(result.awayPosition!)
                                   : 'Caricamento pos...')
                               : (result.awayPosition != null
-                                  ? '${result.awayPosition}° pos.'
+                                  ? _formatPosition(result.awayPosition!)
                                   : 'N/A pos.'),
                             textAlign: TextAlign.end,
                             style: const TextStyle(
