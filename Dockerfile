@@ -1,3 +1,4 @@
+# Force rebuild by adding cache buster
 FROM python:3.9-bullseye
 
 # Install system dependencies for Chrome and Selenium
