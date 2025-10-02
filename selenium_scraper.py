@@ -65,15 +65,24 @@ class TuttocampoSeleniumScraper:
         if headless:
             self.options.add_argument('--headless=new')  # Nuovo headless mode
 
-        # Configurazione minimalista per massima compatibilità container
-        # Solo le opzioni strettamente necessarie per Render
+        # Configurazione ottimizzata per container Docker/Render
         self.options.add_argument('--no-sandbox')
         self.options.add_argument('--disable-dev-shm-usage')
         self.options.add_argument('--disable-gpu')
+        self.options.add_argument('--disable-software-rasterizer')
+        self.options.add_argument('--disable-background-timer-throttling')
+        self.options.add_argument('--disable-backgrounding-occluded-windows')
+        self.options.add_argument('--disable-renderer-backgrounding')
+        self.options.add_argument('--disable-features=TranslateUI')
+        self.options.add_argument('--disable-ipc-flooding-protection')
 
-        # Configurazione base per funzionamento
-        self.options.add_argument('--window-size=800,600')
+        # Configurazione memoria e prestazioni
+        self.options.add_argument('--memory-pressure-off')
+        self.options.add_argument('--max_old_space_size=4096')
+        self.options.add_argument('--window-size=1024,768')
         self.options.add_argument('--disable-extensions')
+        self.options.add_argument('--disable-plugins')
+        self.options.add_argument('--disable-images')  # Velocizza il caricamento
 
         # Specifica path binario Chrome per Render
         chrome_binary_path = '/usr/bin/google-chrome-stable'
@@ -149,10 +158,9 @@ class TuttocampoSeleniumScraper:
                 print(f"🔍 Chrome binary exists: {os.path.exists('/usr/bin/google-chrome')}")
                 print(f"🔍 Memory info: {os.system('free -h') if os.path.exists('/usr/bin/free') else 'N/A'}")
 
-                print("🔄 Attivando modalità HTTP-only per recupero dati di base...")
-                # Invece di fallire completamente, attiviamo modalità alternativa
-                self.driver = None  # Segnala che Chrome non è disponibile
-                return True  # Ma continuiamo con modalità alternativa
+                print("❌ Chrome fallito - scraping non disponibile")
+                self.driver = None
+                return False  # FAIL invece di fallback HTTP-only
 
             # Timeout più brevi per velocità massima
             self.driver.implicitly_wait(2)
