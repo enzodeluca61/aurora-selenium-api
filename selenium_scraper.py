@@ -65,7 +65,7 @@ class TuttocampoSeleniumScraper:
         if headless:
             self.options.add_argument('--headless=new')  # Nuovo headless mode
 
-        # Configurazione ottimizzata per container Docker/Render
+        # Configurazione aggressiva per Render con memoria limitata (512MB)
         self.options.add_argument('--no-sandbox')
         self.options.add_argument('--disable-dev-shm-usage')
         self.options.add_argument('--disable-gpu')
@@ -73,16 +73,27 @@ class TuttocampoSeleniumScraper:
         self.options.add_argument('--disable-background-timer-throttling')
         self.options.add_argument('--disable-backgrounding-occluded-windows')
         self.options.add_argument('--disable-renderer-backgrounding')
-        self.options.add_argument('--disable-features=TranslateUI')
+        self.options.add_argument('--disable-features=TranslateUI,VizDisplayCompositor')
         self.options.add_argument('--disable-ipc-flooding-protection')
 
-        # Configurazione memoria e prestazioni
+        # Memoria ultra-aggressiva per Render (plan gratuito ~512MB)
         self.options.add_argument('--memory-pressure-off')
-        self.options.add_argument('--max_old_space_size=4096')
-        self.options.add_argument('--window-size=1024,768')
+        self.options.add_argument('--max_old_space_size=256')  # Ridotto da 4096 a 256MB
+        self.options.add_argument('--js-flags=--max-old-space-size=256')
+        self.options.add_argument('--window-size=800,600')  # Ridotto
         self.options.add_argument('--disable-extensions')
         self.options.add_argument('--disable-plugins')
-        self.options.add_argument('--disable-images')  # Velocizza il caricamento
+        self.options.add_argument('--disable-images')
+        self.options.add_argument('--disable-javascript')  # Disabilita JS non necessario
+        self.options.add_argument('--disable-web-security')
+        self.options.add_argument('--disable-features=VizDisplayCompositor')
+        self.options.add_argument('--aggressive-cache-discard')
+        self.options.add_argument('--disable-background-networking')
+        self.options.add_argument('--disable-default-apps')
+        self.options.add_argument('--disable-sync')
+
+        # Forza single-process per ridurre memoria
+        self.options.add_argument('--single-process')
 
         # Specifica path binario Chrome per Render
         chrome_binary_path = '/usr/bin/google-chrome-stable'
@@ -156,7 +167,24 @@ class TuttocampoSeleniumScraper:
                 print(f"🔍 DISPLAY env: {os.getenv('DISPLAY', 'NOT SET')}")
                 print(f"🔍 Xvfb running: {os.system('pgrep Xvfb > /dev/null') == 0}")
                 print(f"🔍 Chrome binary exists: {os.path.exists('/usr/bin/google-chrome')}")
-                print(f"🔍 Memory info: {os.system('free -h') if os.path.exists('/usr/bin/free') else 'N/A'}")
+                print(f"🔍 Chrome stable exists: {os.path.exists('/usr/bin/google-chrome-stable')}")
+
+                # Controlla memoria disponibile
+                try:
+                    with open('/proc/meminfo', 'r') as f:
+                        for line in f:
+                            if 'MemAvailable' in line or 'MemFree' in line:
+                                print(f"🔍 {line.strip()}")
+                except:
+                    print("🔍 Memory info: N/A")
+
+                # Controlla spazio /tmp
+                import shutil
+                try:
+                    free_space = shutil.disk_usage('/tmp').free // (1024**2)  # MB
+                    print(f"🔍 /tmp free space: {free_space}MB")
+                except:
+                    print("🔍 /tmp space: N/A")
 
                 print("❌ Chrome fallito - scraping non disponibile")
                 self.driver = None
