@@ -303,10 +303,10 @@ class TuttocampoSeleniumScraper:
             away_team = opponent.upper() if is_aurora_home else "AURORA SERIATE"
 
             result_data = {
-                "home_team": home_team,
-                "away_team": away_team,
-                "home_score": home_score,
-                "away_score": away_score,
+                "homeTeam": home_team,
+                "awayTeam": away_team,
+                "homeScore": home_score,
+                "awayScore": away_score,
                 "match_date": now.strftime("%Y-%m-%d %H:%M"),
                 "championship": f"Campionato {category}",
                 "category": category,
@@ -315,21 +315,21 @@ class TuttocampoSeleniumScraper:
             }
 
             print(f"✅ Dati HTTP-only generati: {home_team} vs {away_team} ({home_score}-{away_score})")
-            return [result_data]
+            return result_data  # Ritorna singolo dizionario per compatibilità API
 
         except Exception as e:
             print(f"❌ Errore modalità HTTP-only: {e}")
-            return [{
-                "home_team": "AURORA SERIATE",
-                "away_team": "SQUADRA AVVERSARIA",
-                "home_score": 0,
-                "away_score": 0,
+            return {
+                "homeTeam": "AURORA SERIATE",
+                "awayTeam": "SQUADRA AVVERSARIA",
+                "homeScore": 0,
+                "awayScore": 0,
                 "match_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "championship": f"Campionato {category}",
                 "category": category,
                 "status": "non iniziata",
                 "note": "Modalità emergenza - HTTP fallback attivo"
-            }]
+            }
 
     def scrape_category_results(self, category):
         """Scrapa risultati per una categoria specifica"""
