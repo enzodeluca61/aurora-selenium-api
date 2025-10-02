@@ -1270,7 +1270,8 @@ class ResultsService extends ChangeNotifier {
 
       // Discovery automatica: prova prima Render, poi rete locale
       final List<String> serverUrls = [
-        'https://aurora-selenium-api2.onrender.com', // Server Render deployato
+        'https://aurora-selenium-api.onrender.com', // Server Render principale (aggiornato)
+        'https://aurora-selenium-api2.onrender.com', // Server Render secondario
         'http://192.168.1.13:5001', // Rete locale di casa
         'http://10.0.2.2:5001', // Android emulator localhost
         'http://localhost:5001', // Locale diretto

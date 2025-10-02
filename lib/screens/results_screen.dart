@@ -313,7 +313,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     } else if (Platform.isAndroid) {
       // Android: prova prima Render, poi rete locale
       orderedIPs = [
-        'aurora-selenium-api2.onrender.com',  // Server Render (cloud)
+        'aurora-selenium-api.onrender.com',   // Server Render principale (aggiornato)
+        'aurora-selenium-api2.onrender.com', // Server Render secondario
         '192.168.1.13:5001',   // IP attuale del server (rete locale)
         '192.168.1.100:5001',  // Casa/ufficio principale
         '10.0.2.2:5001',       // Android emulator
