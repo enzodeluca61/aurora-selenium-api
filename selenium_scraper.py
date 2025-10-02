@@ -733,24 +733,42 @@ class TuttocampoSeleniumScraper:
             print(f"✅ Classifica HTTP-only generata per {category}: {len(standings)} squadre")
             print(f"   Aurora Seriate in {aurora_position}ª posizione")
 
-            # Ritorna solo l'array standings per compatibilità con API server
-            return standings
+            # Converte array in Map per compatibilità con Flutter app
+            standings_map = {}
+            for team_data in standings:
+                team_key = team_data['team'].lower().replace(' ', '_').replace('.', '')
+                standings_map[team_key] = {
+                    'position': team_data['position'],
+                    'team_name': team_data['team'],
+                    'points': team_data['points'],
+                    'matches_played': team_data['matches_played'],
+                    'wins': team_data['wins'],
+                    'draws': team_data['draws'],
+                    'losses': team_data['losses'],
+                    'goals_for': team_data['goals_for'],
+                    'goals_against': team_data['goals_against'],
+                    'goal_difference': team_data['goal_difference']
+                }
+
+            return standings_map
 
         except Exception as e:
             print(f"❌ Errore modalità HTTP-only classifiche: {e}")
-            # Ritorna solo l'array per compatibilità con API server
-            return [{
-                "position": 1,
-                "team": "AURORA SERIATE",
-                "matches_played": 10,
-                "wins": 6,
-                "draws": 2,
-                "losses": 2,
-                "goals_for": 15,
-                "goals_against": 8,
-                "goal_difference": 7,
-                "points": 20
-            }]
+            # Ritorna Map per compatibilità con Flutter app
+            return {
+                "aurora_seriate": {
+                    "position": 1,
+                    "team_name": "AURORA SERIATE",
+                    "matches_played": 10,
+                    "wins": 6,
+                    "draws": 2,
+                    "losses": 2,
+                    "goals_for": 15,
+                    "goals_against": 8,
+                    "goal_difference": 7,
+                    "points": 20
+                }
+            }
 
     def scrape_category_standings(self, category):
         """Scrapa la classifica per una categoria specifica con debug migliorato"""
