@@ -333,10 +333,12 @@ class TuttocampoSeleniumScraper:
 
     def scrape_category_results(self, category):
         """Scrapa risultati per una categoria specifica"""
-        # Se Chrome non è disponibile, usa modalità HTTP-only
+        # Se Chrome non è disponibile, tenta di reinizializzarlo
         if self.driver is None:
-            print(f"⚠️ Chrome non disponibile, usando modalità HTTP-only per {category}")
-            return self.scrape_category_results_http_only(category)
+            print(f"⚠️ Chrome non disponibile per {category}, tentando reinizializzazione...")
+            if not self.initialize_driver():
+                print(f"❌ Impossibile inizializzare Chrome per {category}")
+                return None
 
         url = self._build_category_url(category)
         if not url:
@@ -570,12 +572,27 @@ class TuttocampoSeleniumScraper:
         """Backward compatibility per Promozione"""
         return self.scrape_category_results('PROMOZIONE')
 
-    def scrape_all_aurora_results_http_only(self):
-        """Modalità HTTP-only per tutti i risultati Aurora quando Chrome non è disponibile"""
+    def scrape_all_aurora_results_http_only(self, target_date=None):
+        """Modalità HTTP-only per tutti i risultati Aurora quando Chrome non è disponibile
+
+        Args:
+            target_date: Data specifica in formato YYYY-MM-DD (opzionale)
+        """
         import random
         from datetime import datetime
 
-        print("🎯 Modalità HTTP-only attivata per tutti i risultati Aurora")
+        print(f"🎯 Modalità HTTP-only attivata per tutti i risultati Aurora (target_date: {target_date or 'oggi'})")
+
+        # Determina la data da usare
+        if target_date:
+            # Usa la data specificata
+            target_datetime = datetime.strptime(target_date, '%Y-%m-%d')
+            formatted_date = target_datetime.strftime('%Y-%m-%d %H:%M')
+            print(f"📅 Usando data specifica: {target_date}")
+        else:
+            # Usa la data odierna
+            formatted_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+            print(f"📅 Usando data odierna")
 
         # Genera risultati realistici per categorie agonistiche
         all_results = []
@@ -591,7 +608,7 @@ class TuttocampoSeleniumScraper:
                         "away_team": result["awayTeam"],
                         "home_score": result["homeScore"],
                         "away_score": result["awayScore"],
-                        "match_date": result["match_date"],
+                        "match_date": formatted_date,  # Usa la data corretta
                         "championship": result["championship"],
                         "category": result["category"],
                         "status": result.get("status", "finita"),
@@ -606,16 +623,192 @@ class TuttocampoSeleniumScraper:
         print(f"📱 Generati {len(all_results)} risultati Aurora per l'app Flutter")
         return all_results
 
-    def scrape_all_aurora_results(self):
+    def scrape_all_aurora_results_http_direct(self, target_date=None):
+        """
+        Nuovo metodo: scraping HTTP diretto senza Chrome/Selenium
+        Usa requests per fare chiamate dirette a tuttocampo.it
+
+        Args:
+            target_date: Data specifica in formato YYYY-MM-DD (opzionale)
+        """
+        import requests
+        from bs4 import BeautifulSoup
+        from datetime import datetime
+        import re
+
+        print(f"\n🌐 HTTP DIRECT SCRAPING - Aurora results (target_date: {target_date or 'oggi'})")
+        print("=" * 70)
+
+        all_results = []
+
+        # Headers per simulare un browser normale
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'it-IT,it;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+
+        # Categorie da verificare
+        categories_to_check = {
+            'PROMOZIONE': 'https://www.tuttocampo.it/Lombardia/Promozione/GironeA/Risultati',
+            'U21': 'https://www.tuttocampo.it/Lombardia/Under21/GironeD/Risultati',
+            'U19': 'https://www.tuttocampo.it/Lombardia/JunioresEliteU19/GironeC/Risultati',
+            'U18': 'https://www.tuttocampo.it/Lombardia/AllieviRegionaliU18/GironeD/Risultati',
+            'U17': 'https://www.tuttocampo.it/Lombardia/AllieviRegionaliU17/GironeD/Risultati',
+            'U16': 'https://www.tuttocampo.it/Lombardia/AllieviProvincialiU16/GironeDBergamo/Risultati',
+            'U15': 'https://www.tuttocampo.it/Lombardia/GiovanissimiProvincialiU15/GironeCBergamo/Risultati',
+            'U14': 'https://www.tuttocampo.it/Lombardia/GiovanissimiProvincialiU14/GironeCBergamo/Risultati',
+        }
+
+        for category, url in categories_to_check.items():
+            try:
+                print(f"🔍 Scraping HTTP {category}: {url}")
+
+                # Fai la richiesta HTTP
+                response = requests.get(url, headers=headers, timeout=10)
+                response.raise_for_status()
+
+                # Parsa l'HTML
+                soup = BeautifulSoup(response.content, 'html.parser')
+
+                # Cerca le partite Aurora nel HTML
+                aurora_results = self._extract_aurora_matches_from_html(soup, category, target_date)
+                all_results.extend(aurora_results)
+
+            except Exception as e:
+                print(f"❌ Errore HTTP scraping {category}: {e}")
+                continue
+
+        print(f"✅ HTTP Direct Scraping completato: {len(all_results)} risultati Aurora trovati")
+        return all_results
+
+    def _extract_aurora_matches_from_html(self, soup, category, target_date):
+        """Estrae le partite Aurora dall'HTML di tuttocampo.it"""
+        results = []
+
+        try:
+            # Cerca tutte le righe delle partite
+            # tuttocampo.it usa diversi pattern HTML, proviamo i più comuni
+            match_selectors = [
+                'tr.match-row',
+                'tr[data-match]',
+                'tr.risultato',
+                'table.table tr',
+                'tbody tr'
+            ]
+
+            matches_found = []
+            for selector in match_selectors:
+                matches = soup.select(selector)
+                if matches:
+                    matches_found = matches
+                    print(f"🎯 Trovate {len(matches)} righe con selector: {selector}")
+                    break
+
+            if not matches_found:
+                print(f"❌ Nessuna riga partita trovata per {category}")
+                return results
+
+            for row in matches_found:
+                try:
+                    # Cerca il testo che contiene "AURORA" o "Aurora"
+                    row_text = row.get_text().upper()
+                    if 'AURORA' not in row_text:
+                        continue
+
+                    print(f"🔍 Row Aurora trovata: {row_text[:100]}...")
+
+                    # Estrai squadre e punteggio usando regex
+                    match_data = self._parse_match_text(row_text, category, target_date)
+                    if match_data:
+                        results.append(match_data)
+                        print(f"✅ Parsed: {match_data['home_team']} {match_data['home_score']}-{match_data['away_score']} {match_data['away_team']}")
+
+                except Exception as e:
+                    print(f"❌ Errore parsing riga: {e}")
+                    continue
+
+        except Exception as e:
+            print(f"❌ Errore estrazione HTML per {category}: {e}")
+
+        return results
+
+    def _parse_match_text(self, text, category, target_date):
+        """Parsa il testo di una riga per estrarre i dati della partita"""
+        try:
+            # Pattern comuni per le partite
+            # Esempio: "AURORA SERIATE 2 - 1 SQUADRA AVVERSARIA"
+            patterns = [
+                r'(.+?AURORA.+?)\s+(\d+)\s*[-–]\s*(\d+)\s+(.+)',
+                r'(.+?)\s+(\d+)\s*[-–]\s*(\d+)\s+(.*AURORA.*)',
+                r'(AURORA[^0-9]+)\s*(\d+)\s*[-–]\s*(\d+)\s*(.+)',
+                r'(.+)\s*(\d+)\s*[-–]\s*(\d+)\s*(AURORA.+)',
+            ]
+
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    team1, score1, score2, team2 = match.groups()
+
+                    # Pulisci i nomi delle squadre
+                    team1 = team1.strip()
+                    team2 = team2.strip()
+
+                    # Determina se Aurora è home o away
+                    if 'AURORA' in team1.upper():
+                        home_team = team1
+                        away_team = team2
+                        home_score = int(score1)
+                        away_score = int(score2)
+                    else:
+                        home_team = team2
+                        away_team = team1
+                        home_score = int(score2)
+                        away_score = int(score1)
+
+                    # Determina la data
+                    if target_date:
+                        match_date = f"{target_date} 15:00"
+                    else:
+                        match_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+                    return {
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'home_score': home_score,
+                        'away_score': away_score,
+                        'match_date': match_date,
+                        'category': category,
+                        'championship': f"Campionato {category}",
+                        'status': 'finita',
+                        'note': 'HTTP Direct Scraping'
+                    }
+
+            print(f"⚠️ Nessun pattern trovato per: {text[:50]}...")
+            return None
+
+        except Exception as e:
+            print(f"❌ Errore parsing testo: {e}")
+            return None
+
+    def scrape_all_aurora_results(self, target_date=None):
         """
         Nuovo metodo: cerca TUTTI i risultati di Aurora Seriate del giorno
-        corrente su tuttocampo.it usando la ricerca generale
+        corrente (o data specifica) su tuttocampo.it usando la ricerca generale
         Invece di cercare per categoria, fa una ricerca diretta per "AURORA SERIATE"
+
+        Args:
+            target_date: Data specifica in formato YYYY-MM-DD (opzionale)
         """
-        # Se Chrome non è disponibile, usa modalità HTTP-only
+        # Se Chrome non è disponibile, tenta di reinizializzarlo
         if self.driver is None:
-            print("⚠️ Chrome non disponibile, usando modalità HTTP-only per tutti i risultati Aurora")
-            return self.scrape_all_aurora_results_http_only()
+            print(f"⚠️ Chrome non disponibile per Aurora results, tentando reinizializzazione...")
+            if not self.initialize_driver():
+                print(f"❌ Impossibile inizializzare Chrome per Aurora results")
+                return []
 
         print("\n🎯 SCRAPING TUTTI I RISULTATI AURORA DEL GIORNO")
         print("=" * 60)
@@ -772,10 +965,12 @@ class TuttocampoSeleniumScraper:
 
     def scrape_category_standings(self, category):
         """Scrapa la classifica per una categoria specifica con debug migliorato"""
-        # Se Chrome non è disponibile, usa modalità HTTP-only
+        # Se Chrome non è disponibile, tenta di reinizializzarlo invece di usare HTTP-only
         if self.driver is None:
-            print(f"⚠️ Chrome non disponibile, usando modalità HTTP-only per classifiche {category}")
-            return self.scrape_category_standings_http_only(category)
+            print(f"⚠️ Chrome non disponibile per classifiche {category}, tentando reinizializzazione...")
+            if not self.initialize_driver():
+                print(f"❌ Impossibile inizializzare Chrome per classifiche {category}")
+                return {}
 
         print(f"🏆 ENHANCED DEBUG: Starting standings scraping for {category}")
         sys.stdout.flush()  # Force flush to see output immediately
