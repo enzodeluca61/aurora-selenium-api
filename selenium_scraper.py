@@ -115,6 +115,20 @@ class TuttocampoSeleniumScraper:
         self.options.add_argument('--remote-debugging-port=9222')
         self.options.add_argument('--disable-background-networking')
         self.options.add_argument('--enable-features=NetworkService,NetworkServiceLogging')
+
+        # Opzioni aggiuntive per Render.com (container limitati)
+        self.options.add_argument('--disable-blink-features=AutomationControlled')
+        self.options.add_argument('--disable-domain-reliability')
+        self.options.add_argument('--disable-client-side-phishing-detection')
+        self.options.add_argument('--disable-component-update')
+        self.options.add_argument('--disable-default-component-extensions')
+        self.options.add_argument('--disable-features=AudioServiceOutOfProcess')
+        self.options.add_argument('--disable-gl-extensions')
+        self.options.add_argument('--disable-threaded-animation')
+        self.options.add_argument('--disable-threaded-scrolling')
+        self.options.add_argument('--enable-low-end-device-mode')
+        self.options.add_argument('--force-device-scale-factor=1')
+        self.options.add_argument('--num-raster-threads=1')
         self.options.add_argument('--disable-background-timer-throttling')
         self.options.add_argument('--disable-breakpad')
         self.options.add_argument('--disable-client-side-phishing-detection')
@@ -179,6 +193,14 @@ class TuttocampoSeleniumScraper:
                 signal.alarm(0)
                 print(f"❌ Errore specifico Chrome: {chrome_error}")
                 print(f"❌ Tipo errore: {type(chrome_error).__name__}")
+
+                # Diagnostici aggiuntivi per Render
+                import os
+                print(f"🔍 DISPLAY env: {os.getenv('DISPLAY', 'NOT SET')}")
+                print(f"🔍 Xvfb running: {os.system('pgrep Xvfb > /dev/null') == 0}")
+                print(f"🔍 Chrome binary exists: {os.path.exists('/usr/bin/google-chrome')}")
+                print(f"🔍 Memory info: {os.system('free -h') if os.path.exists('/usr/bin/free') else 'N/A'}")
+
                 return False
 
             # Timeout più brevi per velocità massima
