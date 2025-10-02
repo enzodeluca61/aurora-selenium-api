@@ -47,10 +47,6 @@ class FastTeamLogo extends StatelessWidget {
 
     final logoUrl = _generateLogoUrl(teamName);
 
-    if (kDebugMode) {
-      debugPrint('🚀 Fast logo URL: $teamName -> $logoUrl');
-    }
-
     return Image.network(
       logoUrl,
       height: size,
