@@ -66,50 +66,45 @@ class TuttocampoSeleniumScraper:
             self.options.add_argument('--headless=new')  # Nuovo headless mode
 
         # Configurazione minimalista per massima compatibilità container
-        # Opzioni critiche per ambienti container limitati
+        # Solo le opzioni strettamente necessarie per Render
         self.options.add_argument('--no-sandbox')
         self.options.add_argument('--disable-dev-shm-usage')
         self.options.add_argument('--disable-gpu')
-        self.options.add_argument('--single-process')
-        self.options.add_argument('--disable-setuid-sandbox')
 
-        # Disabilita funzionalità pesanti
-        self.options.add_argument('--disable-features=VizDisplayCompositor,AudioServiceOutOfProcess')
+        # Configurazione base per funzionamento
+        self.options.add_argument('--window-size=800,600')
         self.options.add_argument('--disable-extensions')
-        self.options.add_argument('--disable-plugins')
-        self.options.add_argument('--disable-images')
-        self.options.add_argument('--disable-javascript')  # Toglie JS per velocità
-
-        # Configurazione window e memoria
-        self.options.add_argument('--window-size=800,600')  # Più piccola
-        self.options.add_argument('--memory-pressure-off')
-        self.options.add_argument('--max_old_space_size=512')  # Ridotta memoria
-
-        # User agent semplice
-        self.options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36')
-
-        # Variabili ambiente per Docker/Render
-        if os.getenv('CHROME_HEADLESS', 'true').lower() == 'true':
-            self.options.add_argument('--display=:99')  # Virtual display
-
-        # Disabilita logging per velocità
-        self.options.add_experimental_option('useAutomationExtension', False)
-        self.options.add_experimental_option('excludeSwitches', ['enable-automation', 'enable-logging'])
-        self.options.add_argument('--log-level=3')  # Solo errori fatali
 
         self.driver = None
         self.supabase = None
+
+        # Diagnostic logging per debug Render
+        import logging
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("🔧 Chrome options configurate per Render:")
 
     def start(self):
         """Avvia il browser Chrome ottimizzato e inizializza Supabase"""
         try:
             print("🏁 Avvio Chrome ottimizzato per container...")
 
+            # Log configurazione Chrome
+            for arg in self.options.arguments:
+                self.logger.info(f"   {arg}")
+
             # Verifica ChromeDriver esistente
             import shutil
             chromedriver_path = shutil.which("chromedriver")
             if chromedriver_path:
                 print(f"✅ ChromeDriver trovato: {chromedriver_path}")
+
+                # Verifica versione Chrome
+                import subprocess
+                try:
+                    chrome_version = subprocess.check_output(['google-chrome', '--version'], stderr=subprocess.STDOUT, text=True)
+                    print(f"🌐 Versione Chrome: {chrome_version.strip()}")
+                except Exception as e:
+                    print(f"⚠️ Impossibile verificare versione Chrome: {e}")
             else:
                 print("❌ ChromeDriver non trovato nel PATH")
                 return False
