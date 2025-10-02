@@ -15,8 +15,10 @@ RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearm
     apt-get update && apt-get install -y google-chrome-stable && \
     rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver
-RUN wget -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/131.0.6778.87/linux64/chromedriver-linux64.zip" && \
+# Install ChromeDriver - Get Chrome version and install matching ChromeDriver
+RUN CHROME_VERSION=$(google-chrome --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1) && \
+    echo "Chrome version: $CHROME_VERSION" && \
+    wget -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION.0/linux64/chromedriver-linux64.zip" && \
     unzip /tmp/chromedriver.zip -d /tmp/ && \
     mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ && \
     chmod +x /usr/local/bin/chromedriver && \
@@ -33,7 +35,8 @@ ENV FLASK_ENV=production
 ENV DISPLAY=:99
 ENV CHROME_NO_SANDBOX=true
 
-RUN echo '#!/bin/bash\nXvfb :99 -screen 0 1280x720x16 -nolisten tcp -dpi 96 +extension RANDR &\nsleep 2\nexec gunicorn --bind 0.0.0.0:${PORT:-10000} selenium_api_server:app' > /app/start.sh && chmod +x /app/start.sh
+RUN echo '#!/bin/bash\nXvfb :99 -screen 0 1280x720x16 -nolisten tcp -dpi 96 +extension RANDR &\nsleep 2\nexec gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 2 --threads 2 --timeout 120 selenium_api_server:app' > /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE $PORT
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD curl -f http://localhost:${PORT:-10000}/health || exit 1
 CMD ["/app/start.sh"]

@@ -6,6 +6,8 @@ services:
     plan: starter
     healthCheckPath: /health
     envVars:
+      - key: PORT
+        value: "10000"
       - key: CHROME_HEADLESS
         value: "true"
       - key: FLASK_ENV
@@ -14,8 +16,6 @@ services:
         value: ":99"
       - key: CHROME_NO_SANDBOX
         value: "true"
-    buildCommand: ""
-    startCommand: ""
     numInstances: 1
-    region: oregon
-    autoDeploy: false
+    region: frankfurt
+    autoDeploy: true
