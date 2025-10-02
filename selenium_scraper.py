@@ -988,7 +988,28 @@ class TuttocampoSeleniumScraper:
                     continue
 
             print(f"✅ Classifica estratta: {len(standings)} squadre")
-            return standings
+
+            # Converte array in Map per compatibilità con Flutter app
+            if isinstance(standings, list):
+                standings_map = {}
+                for team_data in standings:
+                    if isinstance(team_data, dict) and 'team' in team_data:
+                        team_key = team_data['team'].lower().replace(' ', '_').replace('.', '').replace("'", '')
+                        standings_map[team_key] = {
+                            'position': team_data['position'],
+                            'team_name': team_data['team'],
+                            'points': team_data.get('points', 0),
+                            'matches_played': team_data.get('matches_played', 0),
+                            'wins': team_data.get('wins', 0),
+                            'draws': team_data.get('draws', 0),
+                            'losses': team_data.get('losses', 0),
+                            'goals_for': team_data.get('goals_for', 0),
+                            'goals_against': team_data.get('goals_against', 0),
+                            'goal_difference': team_data.get('goal_difference', 0)
+                        }
+                return standings_map
+            else:
+                return standings
 
         except Exception as e:
             print(f"❌ Errore scraping classifica {category}: {e}")
