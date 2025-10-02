@@ -679,32 +679,24 @@ class TuttocampoSeleniumScraper:
             print(f"✅ Classifica HTTP-only generata per {category}: {len(standings)} squadre")
             print(f"   Aurora Seriate in {aurora_position}ª posizione")
 
-            return {
-                "category": category,
-                "standings": standings,
-                "last_updated": "HTTP-only mode",
-                "total_teams": len(standings)
-            }
+            # Ritorna solo l'array standings per compatibilità con API server
+            return standings
 
         except Exception as e:
             print(f"❌ Errore modalità HTTP-only classifiche: {e}")
-            return {
-                "category": category,
-                "standings": [{
-                    "position": 1,
-                    "team": "AURORA SERIATE",
-                    "matches_played": 10,
-                    "wins": 6,
-                    "draws": 2,
-                    "losses": 2,
-                    "goals_for": 15,
-                    "goals_against": 8,
-                    "goal_difference": 7,
-                    "points": 20
-                }],
-                "last_updated": "Emergency fallback",
-                "total_teams": 1
-            }
+            # Ritorna solo l'array per compatibilità con API server
+            return [{
+                "position": 1,
+                "team": "AURORA SERIATE",
+                "matches_played": 10,
+                "wins": 6,
+                "draws": 2,
+                "losses": 2,
+                "goals_for": 15,
+                "goals_against": 8,
+                "goal_difference": 7,
+                "points": 20
+            }]
 
     def scrape_category_standings(self, category):
         """Scrapa la classifica per una categoria specifica con debug migliorato"""
