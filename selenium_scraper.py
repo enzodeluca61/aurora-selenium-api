@@ -75,6 +75,11 @@ class TuttocampoSeleniumScraper:
         self.options.add_argument('--window-size=800,600')
         self.options.add_argument('--disable-extensions')
 
+        # Specifica path binario Chrome per Render
+        chrome_binary_path = '/usr/bin/google-chrome-stable'
+        if os.path.exists(chrome_binary_path):
+            self.options.binary_location = chrome_binary_path
+
         self.driver = None
         self.supabase = None
 
@@ -121,7 +126,11 @@ class TuttocampoSeleniumScraper:
             signal.alarm(30)
 
             try:
-                self.driver = webdriver.Chrome(options=self.options)
+                # Configura servizio ChromeDriver esplicito
+                from selenium.webdriver.chrome.service import Service
+                chromedriver_service = Service('/usr/local/bin/chromedriver')
+
+                self.driver = webdriver.Chrome(service=chromedriver_service, options=self.options)
                 signal.alarm(0)  # Cancella timeout
                 print("✅ Chrome avviato con successo")
             except TimeoutError:
