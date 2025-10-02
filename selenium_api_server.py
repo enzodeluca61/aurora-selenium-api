@@ -471,9 +471,12 @@ def scrape_aurora_results():
     """
     Endpoint per scaricare TUTTI i risultati di Aurora Seriate del giorno
     Cerca "AURORA SERIATE" invece delle categorie specifiche
+    Supporta parametro opzionale ?date=YYYY-MM-DD
     """
     try:
-        logger.info("🎯 API request for ALL Aurora results")
+        # Ottieni la data dall'URL parameter se specificata
+        target_date = request.args.get('date')
+        logger.info(f"🎯 API request for ALL Aurora results (date: {target_date or 'today'})")
 
         # Verifica che Selenium sia disponibile
         if not SELENIUM_AVAILABLE:
@@ -483,8 +486,8 @@ def scrape_aurora_results():
                 "error": "Selenium not available in this environment"
             }), 500
 
-        # Usa la cache per i risultati Aurora
-        cache_key = "aurora_all_results"
+        # Usa la cache per i risultati Aurora con chiave data-specifica
+        cache_key = f"aurora_all_results_{target_date or 'today'}"
         current_time = time.time()
 
         # Controlla cache
@@ -522,8 +525,15 @@ def scrape_aurora_results():
                         "mode": "fallback_emergency"
                     })
 
-            # Cerca TUTTI i risultati di Aurora Seriate del giorno
-            results = scraper.scrape_all_aurora_results()
+            # Prova prima lo scraping HTTP diretto, poi fallback a Selenium
+            try:
+                results = scraper.scrape_all_aurora_results_http_direct(target_date=target_date)
+                if not results:
+                    # Fallback a Selenium se HTTP diretto non funziona
+                    results = scraper.scrape_all_aurora_results(target_date=target_date)
+            except Exception as e:
+                logger.warning(f"HTTP direct scraping failed: {e}, trying Selenium")
+                results = scraper.scrape_all_aurora_results(target_date=target_date)
 
             if results:
                 # Salva in cache
@@ -604,8 +614,87 @@ if __name__ == '__main__':
     logger.info("   GET /scrape/<category> - Scrape specific category")
     logger.info("   GET /scrape/all - Scrape all categories")
     logger.info("   GET /scrape/aurora-results - Scrape ALL Aurora results for today")
+    logger.info("   GET /test/http-direct - Test HTTP direct scraping")
     logger.info("   GET /cache/status - Check cache status")
     logger.info("   POST /cache/clear - Clear cache")
 
+@app.route('/test/http-direct', methods=['GET'])
+def test_http_direct():
+    """Endpoint di test per lo scraping HTTP diretto"""
+    try:
+        target_date = request.args.get('date')
+        logger.info(f"🧪 Testing HTTP direct scraping (date: {target_date or 'today'})")
+
+        # Crea un'istanza del scraper per il test
+        from selenium_scraper import TuttocampoSeleniumScraper
+        scraper = TuttocampoSeleniumScraper()
+
+        # Testa il nuovo metodo HTTP diretto
+        results = scraper.scrape_all_aurora_results_http_direct(target_date=target_date)
+
+        return jsonify({
+            "success": True,
+            "method": "HTTP Direct Scraping",
+            "target_date": target_date or "today",
+            "results_count": len(results),
+            "data": results,
+            "cached": False,
+            "timestamp": time.time()
+        })
+
+    except Exception as e:
+        logger.error(f"❌ HTTP Direct test failed: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "method": "HTTP Direct Scraping"
+        }), 500
+
+@app.route('/debug/standings/<category>', methods=['GET'])
+def debug_standings_http_only(category):
+    """Endpoint di debug che forza l'uso del metodo HTTP-only (senza Chrome)"""
+    category = category.upper()
+    logger.info(f"🐛 DEBUG: Force HTTP-only standings for {category}")
+
+    try:
+        # Crea scraper senza Chrome
+        from selenium_scraper import TuttocampoSeleniumScraper
+        scraper = TuttocampoSeleniumScraper()
+        # Non avviamo Chrome - forza HTTP-only
+
+        standings = scraper.scrape_category_standings_real_http_only(category)
+
+        if standings:
+            logger.info(f"✅ DEBUG: HTTP-only success for {category}: {len(standings)} teams")
+            return jsonify({
+                "success": True,
+                "category": category,
+                "standings": standings,
+                "method": "HTTP-only",
+                "debug": True,
+                "timestamp": time.time()
+            })
+        else:
+            logger.warning(f"⚠️ DEBUG: No standings found via HTTP-only for {category}")
+            return jsonify({
+                "success": False,
+                "error": "No standings found via HTTP-only",
+                "category": category,
+                "method": "HTTP-only",
+                "debug": True
+            }), 404
+
+    except Exception as e:
+        logger.error(f"❌ DEBUG: Error in HTTP-only for {category}: {e}")
+        return jsonify({
+            "success": False,
+            "error": f"Debug HTTP-only error: {str(e)}",
+            "category": category,
+            "method": "HTTP-only",
+            "debug": True
+        }), 500
+
+# Avvio del server
+if __name__ == '__main__':
     # Avvia il server Flask
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
