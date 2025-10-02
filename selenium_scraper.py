@@ -65,84 +65,28 @@ class TuttocampoSeleniumScraper:
         if headless:
             self.options.add_argument('--headless=new')  # Nuovo headless mode
 
-        # Configurazioni essenziali per ambienti cloud/container (robuste)
+        # Configurazione minimalista per massima compatibilità container
+        # Opzioni critiche per ambienti container limitati
         self.options.add_argument('--no-sandbox')
         self.options.add_argument('--disable-dev-shm-usage')
         self.options.add_argument('--disable-gpu')
-        self.options.add_argument('--disable-software-rasterizer')
-        self.options.add_argument('--disable-background-timer-throttling')
-        self.options.add_argument('--disable-backgrounding-occluded-windows')
-        self.options.add_argument('--disable-renderer-backgrounding')
-        self.options.add_argument('--disable-field-trial-config')
-        self.options.add_argument('--disable-ipc-flooding-protection')
         self.options.add_argument('--single-process')
         self.options.add_argument('--disable-setuid-sandbox')
-        self.options.add_argument('--disable-zygote')
-        self.options.add_argument('--no-zygote')
-        self.options.add_argument('--disable-accelerated-2d-canvas')
-        self.options.add_argument('--disable-accelerated-jpeg-decoding')
-        self.options.add_argument('--disable-accelerated-mjpeg-decode')
-        self.options.add_argument('--disable-accelerated-video-decode')
-        self.options.add_argument('--disable-crash-reporter')
-        self.options.add_argument('--disable-logging')
-        self.options.add_argument('--disable-notifications')
-        self.options.add_argument('--disable-permissions-api')
-        self.options.add_argument('--hide-scrollbars')
-        self.options.add_argument('--mute-audio')
-        self.options.add_argument('--no-default-browser-check')
-        self.options.add_argument('--no-first-run')
-        self.options.add_argument('--disable-translate')
-        self.options.add_argument('--disable-default-apps')
-        self.options.add_argument('--disable-sync')
-        self.options.add_argument('--disable-reading-from-canvas')
-        self.options.add_argument('--disable-software-compositing-fallback')
-        self.options.add_argument('--disable-background-downloads')
-        self.options.add_argument('--disable-add-to-shelf')
-        self.options.add_argument('--disable-component-extensions-with-background-pages')
 
-        # Ottimizzazioni per velocità
-        self.options.add_argument('--disable-web-security')
-        self.options.add_argument('--disable-features=VizDisplayCompositor')
+        # Disabilita funzionalità pesanti
+        self.options.add_argument('--disable-features=VizDisplayCompositor,AudioServiceOutOfProcess')
         self.options.add_argument('--disable-extensions')
         self.options.add_argument('--disable-plugins')
-        self.options.add_argument('--disable-images')  # Non carica immagini
-        self.options.add_argument('--window-size=1280,720')  # Finestra più piccola
+        self.options.add_argument('--disable-images')
+        self.options.add_argument('--disable-javascript')  # Toglie JS per velocità
+
+        # Configurazione window e memoria
+        self.options.add_argument('--window-size=800,600')  # Più piccola
         self.options.add_argument('--memory-pressure-off')
-        self.options.add_argument('--max_old_space_size=4096')
-        self.options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36')
+        self.options.add_argument('--max_old_space_size=512')  # Ridotta memoria
 
-        # Configurazioni per ambienti virtuali/cloud
-        self.options.add_argument('--remote-debugging-port=9222')
-        self.options.add_argument('--disable-background-networking')
-        self.options.add_argument('--enable-features=NetworkService,NetworkServiceLogging')
-
-        # Opzioni aggiuntive per Render.com (container limitati)
-        self.options.add_argument('--disable-blink-features=AutomationControlled')
-        self.options.add_argument('--disable-domain-reliability')
-        self.options.add_argument('--disable-client-side-phishing-detection')
-        self.options.add_argument('--disable-component-update')
-        self.options.add_argument('--disable-default-component-extensions')
-        self.options.add_argument('--disable-features=AudioServiceOutOfProcess')
-        self.options.add_argument('--disable-gl-extensions')
-        self.options.add_argument('--disable-threaded-animation')
-        self.options.add_argument('--disable-threaded-scrolling')
-        self.options.add_argument('--enable-low-end-device-mode')
-        self.options.add_argument('--force-device-scale-factor=1')
-        self.options.add_argument('--num-raster-threads=1')
-        self.options.add_argument('--disable-background-timer-throttling')
-        self.options.add_argument('--disable-breakpad')
-        self.options.add_argument('--disable-client-side-phishing-detection')
-        self.options.add_argument('--disable-default-apps')
-        self.options.add_argument('--disable-hang-monitor')
-        self.options.add_argument('--disable-popup-blocking')
-        self.options.add_argument('--disable-prompt-on-repost')
-        self.options.add_argument('--disable-sync')
-        self.options.add_argument('--force-color-profile=srgb')
-        self.options.add_argument('--metrics-recording-only')
-        self.options.add_argument('--safebrowsing-disable-auto-update')
-        self.options.add_argument('--enable-automation')
-        self.options.add_argument('--password-store=basic')
-        self.options.add_argument('--use-mock-keychain')
+        # User agent semplice
+        self.options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36')
 
         # Variabili ambiente per Docker/Render
         if os.getenv('CHROME_HEADLESS', 'true').lower() == 'true':
