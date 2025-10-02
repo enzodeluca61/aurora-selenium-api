@@ -320,9 +320,30 @@ def scrape_standings(category):
         standings = scraper.scrape_category_standings(category)
 
         if standings:
+            # Converte format per Flutter app se necessario
+            if isinstance(standings, list):
+                logger.info(f"🔄 Converting array standings to Map format for Flutter app")
+                standings_map = {}
+                for team_data in standings:
+                    if isinstance(team_data, dict) and 'team' in team_data:
+                        team_key = team_data['team'].lower().replace(' ', '_').replace('.', '').replace("'", '')
+                        standings_map[team_key] = {
+                            'position': team_data['position'],
+                            'team_name': team_data['team'],
+                            'points': team_data.get('points', 0),
+                            'matches_played': team_data.get('matches_played', 0),
+                            'wins': team_data.get('wins', 0),
+                            'draws': team_data.get('draws', 0),
+                            'losses': team_data.get('losses', 0),
+                            'goals_for': team_data.get('goals_for', 0),
+                            'goals_against': team_data.get('goals_against', 0),
+                            'goal_difference': team_data.get('goal_difference', 0)
+                        }
+                standings = standings_map
+
             # Cache risultato
             scraping_cache[cache_key] = (standings, current_time)
-            logger.info(f"✅ Standings scraped successfully for {category}: {len(standings)} teams")
+            logger.info(f"✅ Standings scraped successfully for {category}: {len(standings) if isinstance(standings, dict) else len(standings)} teams")
 
             return jsonify({
                 "success": True,
